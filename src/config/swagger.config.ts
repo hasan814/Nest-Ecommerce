@@ -4,7 +4,7 @@ import { INestApplication } from "@nestjs/common"
 
 export const swaggerConfigInit = (app: INestApplication): void => {
   const document = new DocumentBuilder()
-    .setTitle("ECommerce")
+    .setTitle("E-Commerce")
     .setDescription('Backend of food website')
     .setVersion("v0.0.1")
     .addBearerAuth(SwaggerAuthConfig(), "Authorization")

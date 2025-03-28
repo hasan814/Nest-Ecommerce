@@ -1,8 +1,9 @@
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes } from '@nestjs/swagger';
 import { Param, Delete, Put, ParseIntPipe } from '@nestjs/common';
 import { Controller, Get, Post, Body } from '@nestjs/common';
 import { CreateProductDto } from '../dto/product.dto';
 import { UpdateProductDto } from '../dto/update-product.dto';
+import { SwaggerConsumes } from 'src/common/enums/swagger-consumes';
 import { ProductMessage } from '../enums/product-message.enum';
 import { ProductService } from '../services/product.service';
 import { ProductSummary } from '../enums/product-summary.enum';
@@ -16,6 +17,7 @@ export class ProductController {
   @Post()
   @ApiOperation({ summary: ProductSummary.CREATE })
   @ApiResponse({ status: 201, description: ProductMessage.CREATED, type: ProductEntity })
+  @ApiConsumes(SwaggerConsumes.MultipartData)
   create(@Body() createDto: CreateProductDto) {
     return this.productService.create(createDto);
   }

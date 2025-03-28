@@ -6,6 +6,7 @@ import { CreateProductDto } from '../dto/product.dto';
 import { CategoryEntity } from 'src/modules/category/entities/category.entity';
 import { ProductMessage } from '../enums/product-message.enum';
 import { ProductEntity } from '../entities/product.entity';
+import { RedisService } from 'src/modules/redis/redis.service';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -14,9 +15,10 @@ export class ProductService {
     @InjectRepository(ProductEntity) private productRepository: Repository<ProductEntity>,
     @InjectRepository(CategoryEntity) private categoryRepository: Repository<CategoryEntity>,
     @InjectRepository(SubcategoryEntity) private subcategoryRepository: Repository<SubcategoryEntity>,
+    private redisService: RedisService,
   ) { }
 
-  async create(data: CreateProductDto): Promise<{ message: string; data: ProductEntity }> {
+  async create(data: CreateProductDto) {
     const category = await this.categoryRepository.findOneBy({ id: data.categoryId });
     if (!category) throw new NotFoundException(ProductMessage.CATEGORY_NOT_FOUND);
     let subcategory: SubcategoryEntity | null = null;
@@ -29,18 +31,26 @@ export class ProductService {
     return { message: ProductMessage.CREATED, data: saved };
   }
 
-  async findAll(): Promise<{ message: string; data: ProductEntity[] }> {
+  async findAll() {
+    const cachedProducts = await this.redisService.get<ProductEntity[]>('products');
+    if (cachedProducts) {
+      return { message: ProductMessage.RETRIEVED_ALL, data: cachedProducts };
+    }
     const products = await this.productRepository.find();
+    await this.redisService.set('products', products, 3600);
     return { message: ProductMessage.RETRIEVED_ALL, data: products };
   }
 
-  async findOne(id: number): Promise<{ message: string; data: ProductEntity }> {
+  async findOne(id: number) {
+    const cachedProduct = await this.redisService.get<ProductEntity>(`product:${id}`);
+    if (cachedProduct) return { message: ProductMessage.RETRIEVED_ONE, data: cachedProduct };
     const product = await this.productRepository.findOne({ where: { id } });
     if (!product) throw new NotFoundException(ProductMessage.NOT_FOUND);
+    await this.redisService.set(`product:${id}`, product, 3600);
     return { message: ProductMessage.RETRIEVED_ONE, data: product };
   }
 
-  async update(id: number, updateData: UpdateProductDto): Promise<{ message: string; data: ProductEntity }> {
+  async update(id: number, updateData: UpdateProductDto) {
     const product = await this.productRepository.findOne({ where: { id } });
     if (!product) throw new NotFoundException(ProductMessage.NOT_FOUND);
     Object.assign(product, updateData)
@@ -62,13 +72,13 @@ export class ProductService {
     return { message: ProductMessage.UPDATED, data: updated };
   }
 
-  async remove(id: number): Promise<{ message: string }> {
+  async remove(id: number) {
     const result = await this.productRepository.delete(id);
     if (result.affected === 0) throw new NotFoundException(ProductMessage.NOT_FOUND);
     return { message: ProductMessage.DELETED };
   }
 
-  async findByBarcode(barcode: string): Promise<{ message: string; data: ProductEntity }> {
+  async findByBarcode(barcode: string) {
     const product = await this.productRepository.findOne({ where: { barcode } });
     if (!product) throw new NotFoundException(ProductMessage.BARCODE_NOT_FOUND);
     return { message: ProductMessage.RETRIEVED_ONE, data: product };

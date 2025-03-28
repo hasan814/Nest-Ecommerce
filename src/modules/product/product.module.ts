@@ -1,13 +1,21 @@
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductController } from './controllers/product.controller';
-import { ProductService } from './services/product.service';
-import { Module } from '@nestjs/common';
-import { ProductEntity } from './entities/product.entity';
 import { SubcategoryEntity } from '../subcategory/entities/subcategory.entity';
+import { ProductService } from './services/product.service';
 import { CategoryEntity } from '../category/entities/category.entity';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ProductEntity } from './entities/product.entity';
+import { RedisModule } from '../redis/redis.module';
+import { Module } from '@nestjs/common';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([ProductEntity, SubcategoryEntity, CategoryEntity])],
+  imports: [
+    TypeOrmModule.forFeature([
+      ProductEntity,
+      CategoryEntity,
+      SubcategoryEntity,
+    ]),
+    RedisModule
+  ],
   controllers: [ProductController],
   providers: [ProductService],
 })

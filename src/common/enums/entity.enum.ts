@@ -4,5 +4,5 @@ export enum EntityName {
   Company = "company",
   Product = "product",
   Category = "category",
-  SubCategory = "subCategory",
+  SubCategory = "sub_category",
 }
