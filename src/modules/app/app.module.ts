@@ -1,10 +1,11 @@
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TypeOrmConfig } from 'src/config/typeorm.config';
-import { Module } from '@nestjs/common';
 import { CompanyModule } from '../company/company.module';
+import { ProductModule } from '../product/product.module';
+import { Module } from '@nestjs/common';
 
 @Module({
-  imports: [TypeOrmModule.forRoot(TypeOrmConfig()), CompanyModule],
+  imports: [TypeOrmModule.forRoot(TypeOrmConfig()), CompanyModule, ProductModule],
   controllers: [],
   providers: [],
 })

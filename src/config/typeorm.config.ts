@@ -18,8 +18,8 @@ export function TypeOrmConfig(): TypeOrmModuleOptions {
     username: DB_USERNAME,
     password: DB_PASSWORD,
     database: DB_NAME,
-    autoLoadEntities: true,
-    synchronize: false,
+    autoLoadEntities: false,
+    synchronize: true,
     entities: [
       ProductEntity,
       CompanyEntity,

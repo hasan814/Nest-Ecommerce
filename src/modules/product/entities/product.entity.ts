@@ -12,9 +12,12 @@ export class ProductEntity extends BaseEntity {
   @Column('decimal', { precision: 10, scale: 2 })
   price: number;
 
+  @Column({ unique: true })
+  barcode: string;
+
   @ManyToOne(() => CategoryEntity, (category) => category.products, { nullable: false })
   category: CategoryEntity;
 
   @ManyToOne(() => SubcategoryEntity, (subcategory) => subcategory.products, { nullable: true })
-  subcategory?: SubcategoryEntity;
+  subcategory: SubcategoryEntity | null;
 }
