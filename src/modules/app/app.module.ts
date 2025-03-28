@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { TypeOrmConfig } from 'src/config/typeorm.config';
 import { CompanyModule } from '../company/company.module';
 import { ProductModule } from '../product/product.module';
+import { LoggerService } from '../../common/decorators/logger.service';
 import { Module } from '@nestjs/common';
 
 @Module({
@@ -15,6 +16,7 @@ import { Module } from '@nestjs/common';
     SubcategoryModule
   ],
   controllers: [],
-  providers: [],
+  providers: [LoggerService],
+  exports: [LoggerService],
 })
 export class AppModule { }

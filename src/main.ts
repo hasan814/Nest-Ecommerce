@@ -1,3 +1,4 @@
+import { HttpExceptionFilter } from './common/decorators/http-exception.filter';
 import { swaggerConfigInit } from './config/swagger.config';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -7,6 +8,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   swaggerConfigInit(app);
   app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalFilters(new HttpExceptionFilter());
+
 
   const { PORT = 3000 } = process.env;
   await app.listen(PORT);
