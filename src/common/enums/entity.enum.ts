@@ -1,4 +1,8 @@
 export enum EntityName {
+  Otp = "otp",
   User = "user",
-  Otp = "otp"
+  Company = "company",
+  Product = "product",
+  Category = "category",
+  SubCategory = "subCategory",
 }

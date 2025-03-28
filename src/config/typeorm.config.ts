@@ -1,4 +1,8 @@
 import { TypeOrmModuleOptions } from "@nestjs/typeorm"
+import { SubcategoryEntity } from "src/modules/subcategory/entities/subcategory.entity";
+import { CategoryEntity } from "src/modules/category/entities/category.entity";
+import { ProductEntity } from "src/modules/product/entities/product.entity";
+import { CompanyEntity } from "src/modules/company/entities/company.entity";
 
 import * as dotenv from "dotenv";
 
@@ -16,6 +20,11 @@ export function TypeOrmConfig(): TypeOrmModuleOptions {
     database: DB_NAME,
     autoLoadEntities: true,
     synchronize: true,
-    entities: ['']
+    entities: [
+      ProductEntity,
+      CompanyEntity,
+      CategoryEntity,
+      SubcategoryEntity,
+    ],
   }
 }
