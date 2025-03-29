@@ -1,19 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Redis } from 'ioredis';
 
 @Injectable()
 export class RedisService {
-  private redis: Redis;
+  constructor(@Inject('REDIS_CLIENT') private readonly redis: Redis) { }
 
-  constructor() {
-    this.redis = new Redis({
-      host: 'localhost',
-      port: 6379,
-      db: 0,
-    });
-  }
-
-  async set(key: string, value: any, ttl: number = 3600): Promise<void> {
+  async set(key: string, value: any, ttl = 3600): Promise<void> {
     await this.redis.set(key, JSON.stringify(value), 'EX', ttl);
   }
 

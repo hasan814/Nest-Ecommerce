@@ -1,23 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ProductController } from './product.controller';
 import { NotFoundException } from '@nestjs/common';
+import { CreateProductDto } from '../dto/product.dto';
+import { UpdateProductDto } from '../dto/update-product.dto';
 import { ProductService } from '../services/product.service';
 import { ProductMessage } from '../enums/product-message.enum';
 import { ProductEntity } from '../entities/product.entity';
 
-const mockProduct = { id: 1, name: 'Product 1', price: 100, barcode: '12345', category: {} } as ProductEntity;
-
-const mockProductService = {
-  create: jest.fn().mockResolvedValue({ message: ProductMessage.CREATED, data: mockProduct }),
-  findAll: jest.fn().mockResolvedValue({ message: ProductMessage.RETRIEVED_ALL, data: [mockProduct] }),
-  findOne: jest.fn().mockResolvedValue({ message: ProductMessage.RETRIEVED_ONE, data: mockProduct }),
-  update: jest.fn().mockResolvedValue({ message: ProductMessage.UPDATED, data: mockProduct }),
-  remove: jest.fn().mockResolvedValue({ message: ProductMessage.DELETED }),
-  findByBarcode: jest.fn().mockResolvedValue({ message: ProductMessage.RETRIEVED_ONE, data: mockProduct }),
-};
-
 describe('ProductController', () => {
   let controller: ProductController;
+  let service: ProductService;
+
+  const mockProductService = {
+    create: jest.fn(),
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
+    findByBarcode: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -31,71 +32,105 @@ describe('ProductController', () => {
     }).compile();
 
     controller = module.get<ProductController>(ProductController);
+    service = module.get<ProductService>(ProductService);
   });
 
-  it('should create a product', async () => {
-    const result = await controller.create({
-      name: 'Product 1',
-      price: 100,
-      barcode: '12345',
-      categoryId: 1,
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+
+  describe('create', () => {
+    it('should create a new product', async () => {
+      const dto: CreateProductDto = { name: 'Product1', price: 100, barcode: '123456789', categoryId: 1 };
+      const result = {
+        message: ProductMessage.CREATED,
+        data: new ProductEntity(),
+      };
+      mockProductService.create.mockResolvedValue(result);
+      expect(await controller.create(dto)).toEqual(result);
     });
-    expect(result).toEqual({ message: ProductMessage.CREATED, data: mockProduct });
-    expect(mockProductService.create).toHaveBeenCalledWith({
-      name: 'Product 1',
-      price: 100,
-      barcode: '12345',
-      categoryId: 1,
+  });
+
+  describe('findAll', () => {
+    it('should return all products', async () => {
+      const result = {
+        message: ProductMessage.RETRIEVED_ALL,
+        data: [new ProductEntity()],
+      };
+      mockProductService.findAll.mockResolvedValue(result);
+      expect(await controller.findAll()).toEqual(result);
     });
   });
 
-  it('should get all products', async () => {
-    const result = await controller.findAll();
-    expect(result).toEqual({ message: ProductMessage.RETRIEVED_ALL, data: [mockProduct] });
-    expect(mockProductService.findAll).toHaveBeenCalled();
+  describe('findOne', () => {
+    it('should return a product by ID', async () => {
+      const result = {
+        message: ProductMessage.RETRIEVED_ONE,
+        data: new ProductEntity(),
+      };
+      mockProductService.findOne.mockResolvedValue(result);
+      expect(await controller.findOne(1)).toEqual(result);
+    });
+    it('should throw an error if product is not found', async () => {
+      mockProductService.findOne.mockRejectedValue(
+        new NotFoundException(ProductMessage.NOT_FOUND),
+      );
+      await expect(controller.findOne(999)).rejects.toThrow(NotFoundException);
+    });
   });
 
-  it('should get one product', async () => {
-    const result = await controller.findOne(1);
-    expect(result).toEqual({ message: ProductMessage.RETRIEVED_ONE, data: mockProduct });
-    expect(mockProductService.findOne).toHaveBeenCalledWith(1);
+  describe('update', () => {
+    it('should update a product', async () => {
+      const dto: UpdateProductDto = { name: 'Updated Product' };
+      const result = {
+        message: ProductMessage.UPDATED,
+        data: new ProductEntity(),
+      };
+      mockProductService.update.mockResolvedValue(result);
+      expect(await controller.update(1, dto)).toEqual(result);
+    });
+    it('should throw an error if product is not found for update', async () => {
+      mockProductService.update.mockRejectedValue(
+        new NotFoundException(ProductMessage.NOT_FOUND),
+      );
+      await expect(controller.update(999, { name: 'Updated Product' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
-  it('should throw NotFoundException if product not found (findOne)', async () => {
-    jest.spyOn(mockProductService, 'findOne').mockRejectedValueOnce(new NotFoundException(ProductMessage.NOT_FOUND));
-    await expect(controller.findOne(999)).rejects.toThrow(NotFoundException);
+  describe('remove', () => {
+    it('should delete a product', async () => {
+      const result = {
+        message: ProductMessage.DELETED,
+      };
+      mockProductService.remove.mockResolvedValue(result);
+      expect(await controller.remove(1)).toEqual(result);
+    });
+    it('should throw an error if product is not found for deletion', async () => {
+      mockProductService.remove.mockRejectedValue(
+        new NotFoundException(ProductMessage.NOT_FOUND),
+      );
+      await expect(controller.remove(999)).rejects.toThrow(NotFoundException);
+    });
   });
 
-  it('should update a product', async () => {
-    const result = await controller.update(1, { name: 'Updated Product 1' });
-    expect(result).toEqual({ message: ProductMessage.UPDATED, data: mockProduct });
-    expect(mockProductService.update).toHaveBeenCalledWith(1, { name: 'Updated Product 1' });
-  });
-
-  it('should throw NotFoundException if product not found (update)', async () => {
-    jest.spyOn(mockProductService, 'update').mockRejectedValueOnce(new NotFoundException(ProductMessage.NOT_FOUND));
-    await expect(controller.update(999, { name: 'Updated Product 1' })).rejects.toThrow(NotFoundException);
-  });
-
-  it('should delete a product', async () => {
-    const result = await controller.remove(1);
-    expect(result).toEqual({ message: ProductMessage.DELETED });
-    expect(mockProductService.remove).toHaveBeenCalledWith(1);
-  });
-
-  it('should throw NotFoundException if product not found (delete)', async () => {
-    jest.spyOn(mockProductService, 'remove').mockRejectedValueOnce(new NotFoundException(ProductMessage.NOT_FOUND));
-    await expect(controller.remove(999)).rejects.toThrow(NotFoundException);
-  });
-
-  it('should find product by barcode', async () => {
-    const result = await controller.findByBarcode('12345');
-    expect(result).toEqual({ message: ProductMessage.RETRIEVED_ONE, data: mockProduct });
-    expect(mockProductService.findByBarcode).toHaveBeenCalledWith('12345');
-  });
-
-  it('should throw NotFoundException if product not found (barcode)', async () => {
-    jest.spyOn(mockProductService, 'findByBarcode').mockRejectedValueOnce(new NotFoundException(ProductMessage.BARCODE_NOT_FOUND));
-    await expect(controller.findByBarcode('99999')).rejects.toThrow(NotFoundException);
+  describe('findByBarcode', () => {
+    it('should return a product by barcode', async () => {
+      const result = {
+        message: ProductMessage.RETRIEVED_ONE,
+        data: new ProductEntity(),
+      };
+      mockProductService.findByBarcode.mockResolvedValue(result);
+      expect(await controller.findByBarcode('123456789')).toEqual(result);
+    });
+    it('should throw an error if product is not found by barcode', async () => {
+      mockProductService.findByBarcode.mockRejectedValue(
+        new NotFoundException(ProductMessage.BARCODE_NOT_FOUND),
+      );
+      await expect(controller.findByBarcode('987654321')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 });

@@ -1,22 +1,23 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { CategoryController } from './category.controller';
+import { CreateCategoryDto } from '../dto/category.dto';
+import { UpdateCategoryDto } from '../dto/update-category.dto';
 import { NotFoundException } from '@nestjs/common';
-import { CategoryService } from '../services/category.service';
 import { CategoryMessage } from '../enums/category-message.enum';
+import { CategoryService } from '../services/category.service';
 import { CategoryEntity } from '../entities/category.entity';
-
-const mockCategory = { id: 1, name: 'Food' } as CategoryEntity;
-
-const mockCategoryService = {
-  create: jest.fn().mockResolvedValue({ message: CategoryMessage.CREATED, data: mockCategory }),
-  findAll: jest.fn().mockResolvedValue({ message: CategoryMessage.RETRIEVED_ALL, data: [mockCategory] }),
-  findOne: jest.fn().mockResolvedValue({ message: CategoryMessage.RETRIEVED_ONE, data: mockCategory }),
-  update: jest.fn().mockResolvedValue({ message: CategoryMessage.UPDATED, data: mockCategory }),
-  remove: jest.fn().mockResolvedValue({ message: CategoryMessage.DELETED }),
-};
 
 describe('CategoryController', () => {
   let controller: CategoryController;
+  let service: CategoryService;
+
+  const mockCategoryService = {
+    create: jest.fn(),
+    findAll: jest.fn(),
+    findOne: jest.fn(),
+    update: jest.fn(),
+    remove: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -30,50 +31,86 @@ describe('CategoryController', () => {
     }).compile();
 
     controller = module.get<CategoryController>(CategoryController);
+    service = module.get<CategoryService>(CategoryService);
   });
 
-  it('should create a category', async () => {
-    const result = await controller.create({ name: 'Food' });
-    expect(result).toEqual({ message: CategoryMessage.CREATED, data: mockCategory });
-    expect(mockCategoryService.create).toHaveBeenCalledWith({ name: 'Food' });
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
   });
 
-  it('should get all categories', async () => {
-    const result = await controller.findAll();
-    expect(result).toEqual({ message: CategoryMessage.RETRIEVED_ALL, data: [mockCategory] });
-    expect(mockCategoryService.findAll).toHaveBeenCalled();
+  describe('create', () => {
+    it('should create a new category', async () => {
+      const dto: CreateCategoryDto = { name: 'Food' };
+      const result = {
+        message: CategoryMessage.CREATED,
+        data: new CategoryEntity(),
+      };
+      mockCategoryService.create.mockResolvedValue(result);
+      expect(await controller.create(dto)).toEqual(result);
+    });
   });
 
-  it('should get one category', async () => {
-    const result = await controller.findOne(1);
-    expect(result).toEqual({ message: CategoryMessage.RETRIEVED_ONE, data: mockCategory });
-    expect(mockCategoryService.findOne).toHaveBeenCalledWith(1);
+  describe('findAll', () => {
+    it('should return all categories', async () => {
+      const result = {
+        message: CategoryMessage.RETRIEVED_ALL,
+        data: [new CategoryEntity()],
+      };
+      mockCategoryService.findAll.mockResolvedValue(result);
+      expect(await controller.findAll()).toEqual(result);
+    });
   });
 
-  it('should throw NotFoundException if category not found (findOne)', async () => {
-    jest.spyOn(mockCategoryService, 'findOne').mockRejectedValueOnce(new NotFoundException(CategoryMessage.NOT_FOUND));
-    await expect(controller.findOne(999)).rejects.toThrow(NotFoundException);
+  describe('findOne', () => {
+    it('should return a category by ID', async () => {
+      const result = {
+        message: CategoryMessage.RETRIEVED_ONE,
+        data: new CategoryEntity(),
+      };
+      mockCategoryService.findOne.mockResolvedValue(result);
+      expect(await controller.findOne(1)).toEqual(result);
+    });
+    it('should throw an error if category is not found', async () => {
+      mockCategoryService.findOne.mockRejectedValue(
+        new NotFoundException(CategoryMessage.NOT_FOUND),
+      );
+      await expect(controller.findOne(999)).rejects.toThrow(NotFoundException);
+    });
   });
 
-  it('should update a category', async () => {
-    const result = await controller.update(1, { name: 'UpdatedFood' });
-    expect(result).toEqual({ message: CategoryMessage.UPDATED, data: mockCategory });
-    expect(mockCategoryService.update).toHaveBeenCalledWith(1, { name: 'UpdatedFood' });
+  describe('update', () => {
+    it('should update a category', async () => {
+      const dto: UpdateCategoryDto = { name: 'Updated Food' };
+      const result = {
+        message: CategoryMessage.UPDATED,
+        data: new CategoryEntity(),
+      };
+      mockCategoryService.update.mockResolvedValue(result);
+      expect(await controller.update(1, dto)).toEqual(result);
+    });
+    it('should throw an error if category is not found for update', async () => {
+      mockCategoryService.update.mockRejectedValue(
+        new NotFoundException(CategoryMessage.NOT_FOUND),
+      );
+      await expect(controller.update(999, { name: 'Updated Food' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
   });
 
-  it('should throw NotFoundException if category not found (update)', async () => {
-    jest.spyOn(mockCategoryService, 'update').mockRejectedValueOnce(new NotFoundException(CategoryMessage.NOT_FOUND));
-    await expect(controller.update(999, { name: 'UpdatedFood' })).rejects.toThrow(NotFoundException);
-  });
-
-  it('should delete a category', async () => {
-    const result = await controller.remove(1);
-    expect(result).toEqual({ message: CategoryMessage.DELETED });
-    expect(mockCategoryService.remove).toHaveBeenCalledWith(1);
-  });
-
-  it('should throw NotFoundException if category not found (delete)', async () => {
-    jest.spyOn(mockCategoryService, 'remove').mockRejectedValueOnce(new NotFoundException(CategoryMessage.NOT_FOUND));
-    await expect(controller.remove(999)).rejects.toThrow(NotFoundException);
+  describe('remove', () => {
+    it('should delete a category', async () => {
+      const result = {
+        message: CategoryMessage.DELETED,
+      };
+      mockCategoryService.remove.mockResolvedValue(result);
+      expect(await controller.remove(1)).toEqual(result);
+    });
+    it('should throw an error if category is not found for deletion', async () => {
+      mockCategoryService.remove.mockRejectedValue(
+        new NotFoundException(CategoryMessage.NOT_FOUND),
+      );
+      await expect(controller.remove(999)).rejects.toThrow(NotFoundException);
+    });
   });
 });

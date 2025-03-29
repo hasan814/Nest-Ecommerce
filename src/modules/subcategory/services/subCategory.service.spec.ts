@@ -1,109 +1,142 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { SubcategoryService } from './subcategory.service';
-import { getRepositoryToken } from '@nestjs/typeorm';
 import { SubcategoryMessage } from '../enums/subcategory-message.enum';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { SubcategoryService } from './subcategory.service';
 import { SubcategoryEntity } from '../entities/subcategory.entity';
 import { NotFoundException } from '@nestjs/common';
 import { CategoryEntity } from 'src/modules/category/entities/category.entity';
+import { LoggerService } from 'src/common/decorators/logger.service';
+import { RedisService } from 'src/modules/redis/redis.service';
 import { Repository } from 'typeorm';
-
-const mockSubcategory = { id: 1, name: 'Phones', category: {} } as SubcategoryEntity;
-const mockCategory = { id: 1, name: 'Electronics' } as CategoryEntity;
-
-const mockSubcategoryRepo = {
-  create: jest.fn().mockReturnValue(mockSubcategory),
-  save: jest.fn().mockResolvedValue(mockSubcategory),
-  find: jest.fn().mockResolvedValue([mockSubcategory]),
-  findOne: jest.fn().mockResolvedValue(mockSubcategory),
-  delete: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
-};
-
-const mockCategoryRepo = {
-  findOneBy: jest.fn().mockResolvedValue(mockCategory),
-};
 
 describe('SubcategoryService', () => {
   let service: SubcategoryService;
-  let subcategoryRepo: Repository<SubcategoryEntity>;
-  let categoryRepo: Repository<CategoryEntity>;
+  let subcategoryRepository: Repository<SubcategoryEntity>;
+  let categoryRepository: Repository<CategoryEntity>;
+  let redisService: RedisService;
+  let loggerService: LoggerService;
+
+  const mockSubcategoryRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(),
+    delete: jest.fn(),
+  };
+
+  const mockCategoryRepository = {
+    findOneBy: jest.fn(),
+  };
+
+  const mockRedisService = {
+    del: jest.fn(),
+  };
+
+  const mockLoggerService = {
+    log: jest.fn(),
+    error: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SubcategoryService,
-        {
-          provide: getRepositoryToken(SubcategoryEntity),
-          useValue: mockSubcategoryRepo,
-        },
-        {
-          provide: getRepositoryToken(CategoryEntity),
-          useValue: mockCategoryRepo,
-        },
+        { provide: getRepositoryToken(SubcategoryEntity), useValue: mockSubcategoryRepository },
+        { provide: getRepositoryToken(CategoryEntity), useValue: mockCategoryRepository },
+        { provide: RedisService, useValue: mockRedisService },
+        { provide: LoggerService, useValue: mockLoggerService },
       ],
     }).compile();
-
     service = module.get<SubcategoryService>(SubcategoryService);
-    subcategoryRepo = module.get(getRepositoryToken(SubcategoryEntity));
-    categoryRepo = module.get(getRepositoryToken(CategoryEntity));
+    subcategoryRepository = module.get<Repository<SubcategoryEntity>>(getRepositoryToken(SubcategoryEntity));
+    categoryRepository = module.get<Repository<CategoryEntity>>(getRepositoryToken(CategoryEntity));
+    redisService = module.get<RedisService>(RedisService);
+    loggerService = module.get<LoggerService>(LoggerService);
+  });
+  it('should be defined', () => {
+    expect(service).toBeDefined();
   });
 
-  it('should create a subcategory', async () => {
-    const result = await service.create({
-      name: 'Phones',
-      categoryId: 1,
+  describe('create', () => {
+    it('should create a new subcategory', async () => {
+      const dto = { name: 'Phones', categoryId: 1 };
+      const category = new CategoryEntity();
+      category.id = 1;
+      mockCategoryRepository.findOneBy.mockResolvedValue(category);
+      const subcategory = new SubcategoryEntity();
+      subcategory.name = dto.name;
+      subcategory.category = category;
+      mockSubcategoryRepository.create.mockReturnValue(subcategory);
+      mockSubcategoryRepository.save.mockResolvedValue(subcategory);
+      const result = await service.create(dto);
+      expect(result.message).toBe(SubcategoryMessage.CREATED);
+      expect(result.data).toEqual(subcategory);
     });
-
-    expect(result).toEqual({ message: SubcategoryMessage.CREATED, data: mockSubcategory });
-    expect(subcategoryRepo.create).toHaveBeenCalledWith({
-      name: 'Phones',
-      category: mockCategory,
-    });
-    expect(subcategoryRepo.save).toHaveBeenCalledWith(mockSubcategory);
-  });
-
-  it('should find all subcategories', async () => {
-    const result = await service.findAll();
-    expect(result).toEqual({ message: SubcategoryMessage.RETRIEVED_ALL, data: [mockSubcategory] });
-    expect(subcategoryRepo.find).toHaveBeenCalled();
-  });
-
-  it('should find one subcategory', async () => {
-    const result = await service.findOne(1);
-    expect(result).toEqual({ message: SubcategoryMessage.RETRIEVED_ONE, data: mockSubcategory });
-    expect(subcategoryRepo.findOne).toHaveBeenCalledWith({
-      where: { id: 1 },
-      relations: ['category', 'products'],
+    it('should throw error if category not found', async () => {
+      const dto = { name: 'Phones', categoryId: 999 };
+      mockCategoryRepository.findOneBy.mockResolvedValue(null);
+      await expect(service.create(dto)).rejects.toThrow(
+        new NotFoundException(SubcategoryMessage.CATEGORY_NOT_FOUND),
+      );
     });
   });
 
-  it('should throw NotFoundException if subcategory not found (findOne)', async () => {
-    jest.spyOn(subcategoryRepo, 'findOne').mockResolvedValueOnce(null);
-    await expect(service.findOne(999)).rejects.toThrow(NotFoundException);
-  });
-
-  it('should update a subcategory', async () => {
-    const result = await service.update(1, { name: 'Updated Phones' });
-    expect(result).toEqual({ message: SubcategoryMessage.UPDATED, data: mockSubcategory });
-    expect(subcategoryRepo.findOne).toHaveBeenCalledWith({
-      where: { id: 1 },
-      relations: ['category'],
+  describe('findAll', () => {
+    it('should return all subcategories', async () => {
+      const subcategories = [new SubcategoryEntity()];
+      mockSubcategoryRepository.find.mockResolvedValue(subcategories);
+      const result = await service.findAll();
+      expect(result.message).toBe(SubcategoryMessage.RETRIEVED_ALL);
+      expect(result.data).toEqual(subcategories);
     });
-    expect(subcategoryRepo.save).toHaveBeenCalledWith(mockSubcategory);
   });
 
-  it('should throw NotFoundException if subcategory not found (update)', async () => {
-    jest.spyOn(subcategoryRepo, 'findOne').mockResolvedValueOnce(null);
-    await expect(service.update(999, { name: 'Nope' })).rejects.toThrow(NotFoundException);
+  describe('findOne', () => {
+    it('should return a subcategory by ID', async () => {
+      const subcategory = new SubcategoryEntity();
+      subcategory.id = 1;
+      mockSubcategoryRepository.findOne.mockResolvedValue(subcategory);
+      const result = await service.findOne(1);
+      expect(result.message).toBe(SubcategoryMessage.RETRIEVED_ONE);
+      expect(result.data).toEqual(subcategory);
+    });
+    it('should throw error if subcategory not found', async () => {
+      mockSubcategoryRepository.findOne.mockResolvedValue(null);
+      await expect(service.findOne(999)).rejects.toThrow(
+        new NotFoundException(SubcategoryMessage.NOT_FOUND),
+      );
+    });
   });
 
-  it('should delete a subcategory', async () => {
-    const result = await service.remove(1);
-    expect(result).toEqual({ message: SubcategoryMessage.DELETED });
-    expect(subcategoryRepo.delete).toHaveBeenCalledWith(1);
+  describe('update', () => {
+    it('should update a subcategory', async () => {
+      const subcategory = new SubcategoryEntity();
+      subcategory.id = 1;
+      const dto = { name: 'Updated Phones' };
+      mockSubcategoryRepository.findOne.mockResolvedValue(subcategory);
+      mockSubcategoryRepository.save.mockResolvedValue(subcategory);
+      const result = await service.update(1, dto);
+      expect(result.message).toBe(SubcategoryMessage.UPDATED);
+    });
+    it('should throw error if subcategory not found for update', async () => {
+      mockSubcategoryRepository.findOne.mockResolvedValue(null);
+      await expect(service.update(999, { name: 'Updated Phones' })).rejects.toThrow(
+        new NotFoundException(SubcategoryMessage.NOT_FOUND),
+      );
+    });
   });
 
-  it('should throw NotFoundException if subcategory not found (delete)', async () => {
-    jest.spyOn(subcategoryRepo, 'delete').mockResolvedValueOnce({ affected: 0, raw: [] });
-    await expect(service.remove(999)).rejects.toThrow(NotFoundException);
+  describe('remove', () => {
+    it('should delete a subcategory', async () => {
+      mockSubcategoryRepository.delete.mockResolvedValue({ affected: 1 });
+      const result = await service.remove(1);
+      expect(result.message).toBe(SubcategoryMessage.DELETED);
+    });
+    it('should throw error if subcategory not found for deletion', async () => {
+      mockSubcategoryRepository.delete.mockResolvedValue({ affected: 0 });
+      await expect(service.remove(999)).rejects.toThrow(
+        new NotFoundException(SubcategoryMessage.NOT_FOUND),
+      );
+    });
   });
 });

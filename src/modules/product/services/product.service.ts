@@ -1,18 +1,17 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { SubcategoryEntity } from 'src/modules/subcategory/entities/subcategory.entity';
-import { UpdateProductDto } from '../dto/update-product.dto';
-import { InjectRepository } from '@nestjs/typeorm';
 import { CreateProductDto } from '../dto/product.dto';
+import { InjectRepository } from '@nestjs/typeorm';
+import { UpdateProductDto } from '../dto/update-product.dto';
 import { CategoryEntity } from 'src/modules/category/entities/category.entity';
 import { ProductMessage } from '../enums/product-message.enum';
-import { LoggerService } from 'src/common/decorators/logger.service';
 import { ProductEntity } from '../entities/product.entity';
+import { LoggerService } from 'src/common/decorators/logger.service';
 import { RedisService } from 'src/modules/redis/redis.service';
 import { Repository } from 'typeorm';
 
 @Injectable()
 export class ProductService {
-
   constructor(
     @InjectRepository(ProductEntity) private productRepository: Repository<ProductEntity>,
     @InjectRepository(CategoryEntity) private categoryRepository: Repository<CategoryEntity>,
@@ -37,45 +36,41 @@ export class ProductService {
     }
     const product = this.productRepository.create({ ...data, category, subcategory });
     const saved = await this.productRepository.save(product);
+    await this.redisService.del('products');
     this.logger.log(`Product created: ${saved.name}`);
     return { message: ProductMessage.CREATED, data: saved };
   }
 
+
   async findAll() {
-    const cachedProducts = await this.redisService.get<ProductEntity[]>('products');
-    if (cachedProducts) {
-      this.logger.log('Returning cached products');
-      return { message: ProductMessage.RETRIEVED_ALL, data: cachedProducts };
-    }
-    const products = await this.productRepository.find();
-    await this.redisService.set('products', products, 3600);
+    const products = await this.productRepository.find({
+      relations: ['category', 'subcategory'],
+    });
     this.logger.log('Returning all products');
     return { message: ProductMessage.RETRIEVED_ALL, data: products };
   }
 
+
   async findOne(id: number) {
-    const cachedProduct = await this.redisService.get<ProductEntity>(`product:${id}`);
-    if (cachedProduct) {
-      this.logger.log(`Returning cached product with ID ${id}`);
-      return { message: ProductMessage.RETRIEVED_ONE, data: cachedProduct };
-    }
-    const product = await this.productRepository.findOne({ where: { id } });
+    const product = await this.productRepository.findOne({
+      where: { id },
+      relations: ['category', 'subcategory'],
+    });
     if (!product) {
       this.logger.error(`Product with ID ${id} not found`);
       throw new NotFoundException(ProductMessage.NOT_FOUND);
     }
-    await this.redisService.set(`product:${id}`, product, 3600);
     this.logger.log(`Returning product with ID ${id}`);
     return { message: ProductMessage.RETRIEVED_ONE, data: product };
   }
 
   async update(id: number, updateData: UpdateProductDto) {
-    const product = await this.productRepository.findOne({ where: { id } });
+    const product = await this.productRepository.findOneBy({ id });
     if (!product) {
       this.logger.error(`Product with ID ${id} not found for update`);
       throw new NotFoundException(ProductMessage.NOT_FOUND);
     }
-    Object.assign(product, updateData)
+    Object.assign(product, updateData);
     if (updateData.categoryId) {
       const category = await this.categoryRepository.findOneBy({ id: updateData.categoryId });
       if (!category) {
@@ -97,6 +92,8 @@ export class ProductService {
       }
     }
     const updated = await this.productRepository.save(product);
+    await this.redisService.del(`product:${id}`);
+    await this.redisService.del('products');
     this.logger.log(`Product updated: ${updated.name}`);
     return { message: ProductMessage.UPDATED, data: updated };
   }
@@ -107,6 +104,8 @@ export class ProductService {
       this.logger.error(`Product with ID ${id} not found for deletion`);
       throw new NotFoundException(ProductMessage.NOT_FOUND);
     }
+    await this.redisService.del(`product:${id}`);
+    await this.redisService.del('products');
     this.logger.log(`Product deleted with ID ${id}`);
     return { message: ProductMessage.DELETED };
   }

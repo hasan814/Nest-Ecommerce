@@ -6,6 +6,7 @@ import { SubcategoryEntity } from '../entities/subcategory.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CategoryEntity } from 'src/modules/category/entities/category.entity';
 import { LoggerService } from 'src/common/decorators/logger.service';
+import { RedisService } from 'src/modules/redis/redis.service';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -14,10 +15,11 @@ export class SubcategoryService {
   constructor(
     @InjectRepository(SubcategoryEntity) private subcategoryRepository: Repository<SubcategoryEntity>,
     @InjectRepository(CategoryEntity) private categoryRepository: Repository<CategoryEntity>,
+    private redisService: RedisService,
     private logger: LoggerService,
   ) { }
 
-  async create(dto: CreateSubcategoryDto): Promise<{ message: string; data: SubcategoryEntity }> {
+  async create(dto: CreateSubcategoryDto) {
     this.logger.log(`Attempting to create subcategory: ${dto.name}`);
     const category = await this.categoryRepository.findOneBy({ id: dto.categoryId });
     if (!category) {
@@ -29,12 +31,12 @@ export class SubcategoryService {
       category,
     });
     const saved = await this.subcategoryRepository.save(subcategory);
+    await this.redisService.del('subcategories');
     this.logger.log(`Subcategory created with ID ${saved.id}`);
     return { message: SubcategoryMessage.CREATED, data: saved };
   }
 
-  async findAll(): Promise<{ message: string; data: SubcategoryEntity[] }> {
-    this.logger.log('Fetching all subcategories');
+  async findAll() {
     const subcategories = await this.subcategoryRepository.find({
       relations: ['category', 'products'],
     });
@@ -42,8 +44,7 @@ export class SubcategoryService {
     return { message: SubcategoryMessage.RETRIEVED_ALL, data: subcategories };
   }
 
-  async findOne(id: number): Promise<{ message: string; data: SubcategoryEntity }> {
-    this.logger.log(`Fetching subcategory with ID ${id}`);
+  async findOne(id: number) {
     const subcategory = await this.subcategoryRepository.findOne({
       where: { id },
       relations: ['category', 'products'],
@@ -56,7 +57,7 @@ export class SubcategoryService {
     return { message: SubcategoryMessage.RETRIEVED_ONE, data: subcategory };
   }
 
-  async update(id: number, dto: UpdateSubcategoryDto): Promise<{ message: string; data: SubcategoryEntity }> {
+  async update(id: number, dto: UpdateSubcategoryDto) {
     this.logger.log(`Updating subcategory with ID ${id}`);
     const subcategory = await this.subcategoryRepository.findOne({
       where: { id },
@@ -76,17 +77,21 @@ export class SubcategoryService {
     }
     Object.assign(subcategory, dto);
     const updated = await this.subcategoryRepository.save(subcategory);
+    await this.redisService.del(`subcategory:${id}`);
+    await this.redisService.del('subcategories');
     this.logger.log(`Subcategory updated with ID ${updated.id}`);
     return { message: SubcategoryMessage.UPDATED, data: updated };
   }
 
-  async remove(id: number): Promise<{ message: string }> {
+  async remove(id: number) {
     this.logger.log(`Attempting to delete subcategory with ID ${id}`);
     const result = await this.subcategoryRepository.delete(id);
     if (result.affected === 0) {
       this.logger.error(`Subcategory with ID ${id} not found for deletion`);
       throw new NotFoundException(SubcategoryMessage.NOT_FOUND);
     }
+    await this.redisService.del(`subcategory:${id}`);
+    await this.redisService.del('subcategories');
     this.logger.log(`Subcategory with ID ${id} deleted`);
     return { message: SubcategoryMessage.DELETED };
   }
